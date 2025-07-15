@@ -1,0 +1,18 @@
+"use server";
+
+import { assessCarcinogenRisk, type AssessCarcinogenRiskOutput } from "@/ai/flows/integrate-custom-chatgpt-model";
+
+export async function getRiskAssessment(foodItems: string): Promise<{ data: AssessCarcinogenRiskOutput | null; error: string | null }> {
+  if (!foodItems.trim()) {
+    return { data: null, error: "Please enter some food items." };
+  }
+  
+  try {
+    const result = await assessCarcinogenRisk({ foodItems });
+    return { data: result, error: null };
+  } catch (e) {
+    console.error(e);
+    const errorMessage = e instanceof Error ? e.message : "An unknown error occurred.";
+    return { data: null, error: `An error occurred while assessing the risk: ${errorMessage}. Please try again.` };
+  }
+}
