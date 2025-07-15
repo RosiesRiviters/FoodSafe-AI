@@ -16,3 +16,24 @@ export async function getRiskAssessment(foodItems: string): Promise<{ data: Asse
     return { data: null, error: `An error occurred while assessing the risk: ${errorMessage}. Please try again.` };
   }
 }
+
+export async function getRagResponse(prompt: string): Promise<{ answer: string | null; error: string | null }> {
+  if (!prompt.trim()) {
+    return { answer: null, error: "Please enter a prompt." };
+  }
+  try {
+    const response = await fetch("http://localhost:8000/rag", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: prompt, context: [] })
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return { answer: data.answer ?? null, error: null };
+  } catch (e) {
+    const errorMessage = e instanceof Error ? e.message : "An unknown error occurred.";
+    return { answer: null, error: `An error occurred while contacting the AI model: ${errorMessage}` };
+  }
+}

@@ -5,13 +5,11 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Leaf } from "lucide-react";
-import { getRiskAssessment } from "./actions";
+import { getRagResponse } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { RiskCard } from "@/components/risk-card";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import type { AssessCarcinogenRiskOutput } from "@/ai/flows/integrate-custom-chatgpt-model";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -22,7 +20,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export default function Home() {
-  const [result, setResult] = useState<AssessCarcinogenRiskOutput | null>(null);
+  const [answer, setAnswer] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -35,8 +33,8 @@ export default function Home() {
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsLoading(true);
-    setResult(null);
-    const { data: assessmentResult, error } = await getRiskAssessment(data.foodItems);
+    setAnswer(null);
+    const { answer, error } = await getRagResponse(data.foodItems);
     setIsLoading(false);
 
     if (error) {
@@ -45,8 +43,8 @@ export default function Home() {
         description: error,
         variant: "destructive",
       });
-    } else if (assessmentResult) {
-      setResult(assessmentResult);
+    } else if (answer) {
+      setAnswer(answer);
     }
   };
 
@@ -78,10 +76,10 @@ export default function Home() {
                 name="foodItems"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="sr-only">Food Items</FormLabel>
+                    <FormLabel className="sr-only">Prompt</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="e.g., Grilled chicken, white bread, potato chips..."
+                        placeholder="Ask the AI anything..."
                         className="resize-none bg-card"
                         rows={4}
                         {...field}
@@ -92,15 +90,19 @@ export default function Home() {
                 )}
               />
               <Button type="submit" disabled={isLoading} className="w-full text-base font-bold py-6">
-                {isLoading ? "Assessing..." : "Assess Risk"}
+                {isLoading ? "Thinking..." : "Ask AI"}
               </Button>
             </form>
           </Form>
         </section>
 
-        <section className="w-full max-w-2xl">
+        <section className="w-full max-w-2xl mt-8">
           {isLoading && <LoadingSkeleton />}
-          {result && !isLoading && <RiskCard result={result} />}
+          {answer && !isLoading && (
+            <div className="p-4 bg-card rounded shadow text-left whitespace-pre-line">
+              {answer}
+            </div>
+          )}
         </section>
       </main>
       <footer className="text-center p-4 text-xs text-muted-foreground bg-card border-t">
