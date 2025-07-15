@@ -95,7 +95,6 @@ export default function Home() {
             </form>
           </Form>
         </section>
-
         <section className="w-full max-w-2xl mt-8">
           {isLoading && <LoadingSkeleton />}
           {answer && !isLoading && (
