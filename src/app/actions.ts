@@ -37,3 +37,35 @@ export async function getRagResponse(prompt: string): Promise<{ answer: string |
     return { answer: null, error: `An error occurred while contacting the AI model: ${errorMessage}` };
   }
 }
+
+export async function postIngredientsForAnalysis(ingredients: string): Promise<any> {
+  try {
+    const response = await fetch("http://localhost:8000/ingredients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ingredients })
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Unknown error" };
+  }
+}
+
+export async function postBatchProductsForAnalysis(products: { product: string; ingredients: string }[]): Promise<any> {
+  try {
+    const response = await fetch("http://localhost:8000/ingredients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(products)
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Unknown error" };
+  }
+}

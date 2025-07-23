@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Leaf } from "lucide-react";
 import { getRagResponse } from "./actions";
+import { postIngredientsForAnalysis, postBatchProductsForAnalysis } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -23,6 +24,12 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const [ingredientResults, setIngredientResults] = useState<any[] | null>(null);
+  const [batchProducts, setBatchProducts] = useState<{ product: string; ingredients: string }[]>([
+    { product: "", ingredients: "" }
+  ]);
+  const [batchResults, setBatchResults] = useState<any | null>(null);
+  const [isBatchLoading, setIsBatchLoading] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -34,17 +41,46 @@ export default function Home() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsLoading(true);
     setAnswer(null);
-    const { answer, error } = await getRagResponse(data.foodItems);
+    setIngredientResults(null);
+    // Call the new backend endpoint
+    const result = await postIngredientsForAnalysis(data.foodItems);
     setIsLoading(false);
-
-    if (error) {
+    if (result.error) {
       toast({
         title: "Error",
-        description: error,
+        description: result.error,
         variant: "destructive",
       });
-    } else if (answer) {
-      setAnswer(answer);
+    } else if (result.ingredients) {
+      setIngredientResults(result.ingredients);
+    }
+  };
+
+  const handleBatchChange = (idx: number, field: "product" | "ingredients", value: string) => {
+    setBatchProducts(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  };
+  const handleAddProduct = () => {
+    setBatchProducts(prev => [...prev, { product: "", ingredients: "" }]);
+  };
+  const handleRemoveProduct = (idx: number) => {
+    setBatchProducts(prev => prev.filter((_, i) => i !== idx));
+  };
+  const handleBatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsBatchLoading(true);
+    setBatchResults(null);
+    const validProducts = batchProducts.filter(p => p.product.trim() && p.ingredients.trim());
+    if (validProducts.length === 0) {
+      toast({ title: "Error", description: "Please enter at least one product with ingredients.", variant: "destructive" });
+      setIsBatchLoading(false);
+      return;
+    }
+    const result = await postBatchProductsForAnalysis(validProducts);
+    setIsBatchLoading(false);
+    if (result.error) {
+      toast({ title: "Error", description: result.error, variant: "destructive" });
+    } else {
+      setBatchResults(result);
     }
   };
 
@@ -79,7 +115,7 @@ export default function Home() {
                     <FormLabel className="sr-only">Prompt</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Ask the AI anything..."
+                        placeholder="Enter ingredients, e.g. bacon, lettuce, tomato"
                         className="resize-none bg-card"
                         rows={4}
                         {...field}
@@ -90,16 +126,120 @@ export default function Home() {
                 )}
               />
               <Button type="submit" disabled={isLoading} className="w-full text-base font-bold py-6">
-                {isLoading ? "Thinking..." : "Ask AI"}
+                {isLoading ? "Analyzing..." : "Analyze Ingredients"}
               </Button>
             </form>
           </Form>
         </section>
+        {/* Batch mode UI */}
+        <section className="w-full max-w-2xl mb-8 mt-12">
+          <h3 className="text-xl font-bold mb-2">Batch Product Analysis</h3>
+          <form onSubmit={handleBatchSubmit} className="space-y-4">
+            {batchProducts.map((p, idx) => (
+              <div key={idx} className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="Product name"
+                  className="flex-1 border rounded px-2 py-1"
+                  value={p.product}
+                  onChange={e => handleBatchChange(idx, "product", e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Ingredients (comma separated)"
+                  className="flex-[2] border rounded px-2 py-1"
+                  value={p.ingredients}
+                  onChange={e => handleBatchChange(idx, "ingredients", e.target.value)}
+                />
+                <button type="button" onClick={() => handleRemoveProduct(idx)} className="text-red-600 font-bold px-2">×</button>
+              </div>
+            ))}
+            <button type="button" onClick={handleAddProduct} className="bg-primary text-white rounded px-3 py-1 font-bold">+ Add Product</button>
+            <Button type="submit" disabled={isBatchLoading} className="w-full text-base font-bold py-4">
+              {isBatchLoading ? "Analyzing Batch..." : "Analyze Batch"}
+            </Button>
+          </form>
+        </section>
         <section className="w-full max-w-2xl mt-8">
           {isLoading && <LoadingSkeleton />}
-          {answer && !isLoading && (
-            <div className="p-4 bg-card rounded shadow text-left whitespace-pre-line">
-              {answer}
+          {ingredientResults && !isLoading && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-card rounded shadow">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left">Name</th>
+                    <th className="px-4 py-2 text-left">Risk Level</th>
+                    <th className="px-4 py-2 text-left">Score</th>
+                    <th className="px-4 py-2 text-left">Source</th>
+                    <th className="px-4 py-2 text-left">Explanation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ingredientResults.map((item, idx) => (
+                    <tr key={idx} className="border-t">
+                      <td className="px-4 py-2 font-semibold">{item.name}</td>
+                      <td className="px-4 py-2">{item.risk_level}</td>
+                      <td className="px-4 py-2">{item.score}</td>
+                      <td className="px-4 py-2">
+                        {item.source ? (
+                          <a href={item.source} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                            Source
+                          </a>
+                        ) : (
+                          ""
+                        )}
+                      </td>
+                      <td className="px-4 py-2">{item.explanation}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {isBatchLoading && <LoadingSkeleton />}
+          {batchResults && !isBatchLoading && (
+            <div>
+              {Object.entries(batchResults).map(([product, res]: any) => (
+                <div key={product} className="mb-8">
+                  <h4 className="font-bold text-lg mb-2">{product}</h4>
+                  {res.warning && <div className="mb-2 text-orange-600 font-semibold">{res.warning}</div>}
+                  {typeof res.cached !== "undefined" && (
+                    <div className="mb-2 text-xs text-gray-500">{res.cached ? "(cached)" : "(fresh)"}</div>
+                  )}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-card rounded shadow">
+                      <thead>
+                        <tr>
+                          <th className="px-4 py-2 text-left">Name</th>
+                          <th className="px-4 py-2 text-left">Risk Level</th>
+                          <th className="px-4 py-2 text-left">Score</th>
+                          <th className="px-4 py-2 text-left">Source</th>
+                          <th className="px-4 py-2 text-left">Explanation</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {res.ingredients && res.ingredients.map((item: any, idx: number) => (
+                          <tr key={idx} className="border-t">
+                            <td className="px-4 py-2 font-semibold">{item.name}</td>
+                            <td className="px-4 py-2">{item.risk_level}</td>
+                            <td className="px-4 py-2">{item.score}</td>
+                            <td className="px-4 py-2">
+                              {item.source ? (
+                                <a href={item.source} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                                  Source
+                                </a>
+                              ) : (
+                                ""
+                              )}
+                            </td>
+                            <td className="px-4 py-2">{item.explanation}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>
