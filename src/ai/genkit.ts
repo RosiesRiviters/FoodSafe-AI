@@ -1,7 +1,17 @@
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import { genkit } from 'genkit';
+import { ollama } from 'genkitx-ollama';
 
 export const ai = genkit({
-  plugins: [googleAI()],
-  model: 'googleai/gemini-2.0-flash',
+  plugins: [
+    ollama({
+      models: [
+        {
+          name: 'gemma', // switched to Gemma model
+          type: 'generate',
+        },
+      ],
+      serverAddress: 'http://127.0.0.1:11434',
+    }),
+  ],
+  model: 'ollama/gemma', // switched to Gemma model
 });

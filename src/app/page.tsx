@@ -5,7 +5,6 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Leaf } from "lucide-react";
-import { getRagResponse } from "./actions";
 import { postIngredientsForAnalysis, postBatchProductsForAnalysis } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,17 +41,45 @@ export default function Home() {
     setIsLoading(true);
     setAnswer(null);
     setIngredientResults(null);
-    // Call the new backend endpoint
-    const result = await postIngredientsForAnalysis(data.foodItems);
-    setIsLoading(false);
-    if (result.error) {
+    
+    try {
+      console.log("Submitting ingredients:", data.foodItems);
+      const result = await postIngredientsForAnalysis(data.foodItems);
+      setIsLoading(false);
+      
+      if (result.error) {
+        console.error("Backend error:", result.error);
+        toast({
+          title: "Error",
+          description: `Backend error: ${result.error}`,
+          variant: "destructive",
+        });
+      } else if (result.ingredients) {
+        console.log("Success! Got results:", result.ingredients);
+        setIngredientResults(result.ingredients);
+        if (result.warning) {
+          toast({
+            title: "Warning",
+            description: result.warning,
+            variant: "default",
+          });
+        }
+      } else {
+        console.error("Unexpected response format:", result);
+        toast({
+          title: "Error",
+          description: "Unexpected response from backend",
+          variant: "destructive",
+        });
+      }
+    } catch (e) {
+      console.error("Frontend error:", e);
+      setIsLoading(false);
       toast({
         title: "Error",
-        description: result.error,
+        description: `Frontend error: ${e instanceof Error ? e.message : "Unknown error"}`,
         variant: "destructive",
       });
-    } else if (result.ingredients) {
-      setIngredientResults(result.ingredients);
     }
   };
 
@@ -182,14 +209,12 @@ export default function Home() {
                       <td className="px-4 py-2">{item.score}</td>
                       <td className="px-4 py-2">
                         {item.source ? (
-                          <a href={item.source} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                            Source
-                          </a>
+                          <span className="text-blue-600">{item.source}</span>
                         ) : (
                           ""
                         )}
                       </td>
-                      <td className="px-4 py-2">{item.explanation}</td>
+                      <td className="px-4 py-2 whitespace-pre-line">{item.explanation}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -202,10 +227,6 @@ export default function Home() {
               {Object.entries(batchResults).map(([product, res]: any) => (
                 <div key={product} className="mb-8">
                   <h4 className="font-bold text-lg mb-2">{product}</h4>
-                  {res.warning && <div className="mb-2 text-orange-600 font-semibold">{res.warning}</div>}
-                  {typeof res.cached !== "undefined" && (
-                    <div className="mb-2 text-xs text-gray-500">{res.cached ? "(cached)" : "(fresh)"}</div>
-                  )}
                   <div className="overflow-x-auto">
                     <table className="min-w-full bg-card rounded shadow">
                       <thead>
@@ -225,14 +246,12 @@ export default function Home() {
                             <td className="px-4 py-2">{item.score}</td>
                             <td className="px-4 py-2">
                               {item.source ? (
-                                <a href={item.source} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                                  Source
-                                </a>
+                                <span className="text-blue-600">{item.source}</span>
                               ) : (
                                 ""
                               )}
                             </td>
-                            <td className="px-4 py-2">{item.explanation}</td>
+                            <td className="px-4 py-2 whitespace-pre-line">{item.explanation}</td>
                           </tr>
                         ))}
                       </tbody>

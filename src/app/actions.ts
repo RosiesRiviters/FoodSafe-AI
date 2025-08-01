@@ -1,22 +1,5 @@
 "use server";
 
-import { assessCarcinogenRisk, type AssessCarcinogenRiskOutput } from "@/ai/flows/integrate-custom-chatgpt-model";
-
-export async function getRiskAssessment(foodItems: string): Promise<{ data: AssessCarcinogenRiskOutput | null; error: string | null }> {
-  if (!foodItems.trim()) {
-    return { data: null, error: "Please enter some food items." };
-  }
-  
-  try {
-    const result = await assessCarcinogenRisk({ foodItems });
-    return { data: result, error: null };
-  } catch (e) {
-    console.error(e);
-    const errorMessage = e instanceof Error ? e.message : "An unknown error occurred.";
-    return { data: null, error: `An error occurred while assessing the risk: ${errorMessage}. Please try again.` };
-  }
-}
-
 export async function getRagResponse(prompt: string): Promise<{ answer: string | null; error: string | null }> {
   if (!prompt.trim()) {
     return { answer: null, error: "Please enter a prompt." };
@@ -40,16 +23,26 @@ export async function getRagResponse(prompt: string): Promise<{ answer: string |
 
 export async function postIngredientsForAnalysis(ingredients: string): Promise<any> {
   try {
+    console.log("Attempting to fetch from backend...");
     const response = await fetch("http://localhost:8000/ingredients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ingredients })
     });
+    
+    console.log("Response status:", response.status);
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error("Backend error:", errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
-    return await response.json();
+    
+    const data = await response.json();
+    console.log("Backend response:", data);
+    return data;
   } catch (e) {
+    console.error("Fetch error:", e);
     return { error: e instanceof Error ? e.message : "Unknown error" };
   }
 }
@@ -61,6 +54,18 @@ export async function postBatchProductsForAnalysis(products: { product: string; 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(products)
     });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Unknown error" };
+  }
+}
+
+export async function checkBackendHealth(): Promise<any> {
+  try {
+    const response = await fetch("http://localhost:8000/health");
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

@@ -6,11 +6,81 @@ import json
 import sqlite3
 from datetime import datetime
 from fastapi import Body
+import os
+import time
 
 app = FastAPI()
 
+# Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "gemma3"  # Change to your preferred model
+OLLAMA_MODEL = "gemma"  # Change this to match your installed model
+
+# Web search configuration (using free SerpAPI)
+SERPAPI_KEY = "your_serpapi_key_here"  # Get free key from https://serpapi.com/
+USE_WEB_SEARCH = True  # Set to False to disable web search
+
+def search_web_serpapi(query: str) -> str:
+    """Search the web using SerpAPI for real-time information"""
+    if not SERPAPI_KEY or SERPAPI_KEY == "your_serpapi_key_here":
+        return f"Search query: {query} (API key not configured)"
+    
+    try:
+        url = "https://serpapi.com/search"
+        params = {
+            "q": f"carcinogen risk {query} food safety",
+            "api_key": SERPAPI_KEY,
+            "num": 3  # Get top 3 results
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Extract snippets from search results
+        snippets = []
+        if "organic_results" in data:
+            for result in data["organic_results"][:3]:
+                title = result.get("title", "")
+                snippet = result.get("snippet", "")
+                link = result.get("link", "")
+                snippets.append(f"{title}: {snippet} (Source: {link})")
+        
+        return "\n".join(snippets) if snippets else f"No web results found for: {query}"
+        
+    except Exception as e:
+        print(f"Web search error: {e}")
+        return f"Search query: {query} (search failed)"
+
+def retrieve_context(ingredient: str) -> str:
+    """
+    Retrieve relevant context documents for an ingredient.
+    Now includes real web search!
+    """
+    if USE_WEB_SEARCH and SERPAPI_KEY != "your_serpapi_key_here":
+        # Use real web search
+        web_results = search_web_serpapi(ingredient)
+        return f"Web search results for {ingredient}:\n{web_results}"
+    else:
+        # Fallback to static keywords
+        context_keywords = {
+            "bacon": "processed meat carcinogen WHO Group 1",
+            "sausage": "processed meat carcinogen WHO Group 1", 
+            "hot dog": "processed meat carcinogen WHO Group 1",
+            "artificial colors": "food dyes carcinogen FDA",
+            "preservatives": "food preservatives carcinogen risk",
+            "nitrites": "nitrites processed meat carcinogen",
+            "aspartame": "artificial sweetener aspartame carcinogen",
+            "saccharin": "artificial sweetener saccharin carcinogen",
+            "BHA": "BHA preservative carcinogen",
+            "BHT": "BHT preservative carcinogen"
+        }
+        
+        ingredient_lower = ingredient.lower()
+        for keyword, context in context_keywords.items():
+            if keyword in ingredient_lower:
+                return context
+        
+        return f"carcinogen risk assessment {ingredient} food safety"
 
 # Example dictionary of known carcinogen scores
 KNOWN_CARCINOGEN_SCORES = {
@@ -109,48 +179,6 @@ class ProductRequest(BaseModel):
 # Ingredient score cache (in-memory, server lifetime)
 ingredient_cache: Dict[str, List[Dict[str, Any]]] = {}
 
-BING_API_KEY = "YOUR_BING_API_KEY"
-
-def get_rag_context(ingredient):
-    try:
-        return search_web_bing(f"carcinogen risk of {ingredient}", BING_API_KEY)
-    except Exception as e:
-        return "No web context available."
-
-def analyze_ingredients(ingredients: str):
-    ingredient_list = [i.strip() for i in ingredients.split(",") if i.strip()]
-    results = []
-    for ing in ingredient_list:
-        web_context = get_rag_context(ing)
-        prompt = (
-            f"Ingredient: {ing}\n"
-            f"Web search context:\n{web_context}\n"
-            "Based on the above, assess the carcinogen risk. "
-            "Respond in JSON with keys: name, risk_level, score, source, explanation."
-        )
-        payload = {
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False
-        }
-        try:
-            response = requests.post(OLLAMA_URL, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            llm_output = data.get("response", "")
-            # Try to parse JSON from LLM output
-            try:
-                result = json.loads(llm_output)
-                if isinstance(result, dict):
-                    results.append(result)
-                else:
-                    results.append({"name": ing, "risk_level": "Unknown", "score": "Unknown", "source": "N/A", "explanation": "No valid response from LLM."})
-            except Exception:
-                results.append({"name": ing, "risk_level": "Unknown", "score": "Unknown", "source": "N/A", "explanation": "No valid response from LLM."})
-        except Exception as e:
-            results.append({"name": ing, "risk_level": "Unknown", "score": "Unknown", "source": "N/A", "explanation": str(e)})
-    return results
-
 @app.post("/ingredients")
 def get_llm_response(
     request: Union[IngredientRequest, list[ProductRequest]] = Body(...)
@@ -160,7 +188,6 @@ def get_llm_response(
         cache_key = ",".join(sorted([i.strip().lower() for i in ingredients.split(",") if i.strip()]))
         if cache_key in ingredient_cache:
             result = ingredient_cache[cache_key]
-            # Add warning if any score > 80
             high_risk = [item["name"] for item in result if isinstance(item.get("score"), (int, float)) and item["score"] > 80]
             warning = None
             if high_risk:
@@ -171,62 +198,89 @@ def get_llm_response(
                 response_json["warning"] = warning
             response_json["cached"] = True
             return response_json
-        few_shot_example = (
-            "Example input: Ingredients: bacon, lettuce\n"
-            "Example output: [\n"
-            "  {\n"
-            "    \"name\": \"bacon\",\n"
-            "    \"risk_level\": \"High\",\n"
-            "    \"score\": 90,\n"
-            "    \"source\": \"https://www.cancer.org/latest-news/processed-meat-and-cancer-what-you-need-to-know.html\",\n"
-            "    \"explanation\": \"Processed meats like bacon are classified as Group 1 carcinogens by the WHO.\"\n"
-            "  },\n"
-            "  {\n"
-            "    \"name\": \"lettuce\",\n"
-            "    \"risk_level\": \"Low\",\n"
-            "    \"score\": 5,\n"
-            "    \"source\": \"https://www.cancer.org/healthy/eat-healthy-get-active/eat-healthy/vegetables.html\",\n"
-            "    \"explanation\": \"Lettuce is not associated with carcinogenic risk.\"\n"
-            "  }\n"
-            "]\n"
-        )
-        prompt = (
-            "For each of the following ingredients, assess the carcinogen risk and return a valid JSON array. "
-            "Each ingredient should be an object with the following keys: "
-            "name (ingredient name), risk_level (Low, Medium, High), score (0-100), source (URL or citation from a reputable organization, or 'N/A' if not available), and explanation (short text). "
-            "If there is no known risk, set risk_level to 'Low', score to 0, source to 'N/A', and explanation to 'No known carcinogen risk.' "
-            "Respond ONLY with a valid JSON array, no extra text.\n"
-            f"{few_shot_example}"
-            f"Ingredients: {ingredients}"
-        )
-        payload = {
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False
-        }
-        try:
-            response = requests.post(OLLAMA_URL, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            llm_output = data.get("response", "[]")
-            ingredient_list = [i.strip() for i in ingredients.split(",") if i.strip()]
-            result = fill_missing_with_known(ingredient_list, llm_output)
-            # Cache the result
-            ingredient_cache[cache_key] = result
-            # Add warning if any score > 80
-            high_risk = [item["name"] for item in result if isinstance(item.get("score"), (int, float)) and item["score"] > 80]
-            warning = None
-            if high_risk:
-                warning = f"Warning: High carcinogen risk for: {', '.join(high_risk)}."
-            log_analysis(ingredients, json.dumps(result), None)
-            response_json = {"ingredients": result}
-            if warning:
-                response_json["warning"] = warning
-            response_json["cached"] = False
-            return response_json
-        except Exception as e:
-            log_analysis(ingredients, None, str(e))
-            return {"error": str(e)}
+        
+        ingredient_list = [i.strip() for i in ingredients.split(",") if i.strip()]
+        results = []
+        
+        for ingredient in ingredient_list:
+            if not ingredient or ingredient.lower() == "ingredients":
+                continue
+                
+            # Retrieve context for this ingredient
+            context = retrieve_context(ingredient)
+            
+            # Create prompt with context
+            prompt = f"""<s>[INST] You are an expert in food safety and carcinogen risk assessment.
+
+Context about {ingredient}: {context}
+
+Analyze the carcinogen risk for: {ingredient}
+
+Provide your response in this exact JSON format:
+{{
+  "name": "{ingredient}",
+  "risk_level": "Low/Medium/High/Unknown",
+  "score": 0-100,
+  "source": "URL or citation or 'N/A'",
+  "explanation": "Brief explanation of the risk assessment"
+}}
+
+If there is no known risk, set risk_level to "Low", score to 0, source to "N/A", and explanation to "No known carcinogen risk."
+
+Respond only with the JSON, no additional text. [/INST]"""
+            
+            try:
+                # Generate response using Ollama
+                payload = {
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False
+                }
+                
+                response = requests.post(OLLAMA_URL, json=payload, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                llm_output = data.get("response", "").strip()
+                
+                # Try to parse JSON from response
+                try:
+                    result = json.loads(llm_output)
+                    results.append(result)
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, create a fallback entry
+                    results.append({
+                        "name": ingredient,
+                        "risk_level": "unknown",
+                        "score": "unknown", 
+                        "source": "N/A",
+                        "explanation": "Unable to parse AI response"
+                    })
+                    
+            except Exception as e:
+                results.append({
+                    "name": ingredient,
+                    "risk_level": "unknown",
+                    "score": "unknown",
+                    "source": "N/A", 
+                    "explanation": f"Error during analysis: {str(e)}"
+                })
+        
+        # Apply fallback logic
+        result = fill_missing_with_known(ingredient_list, results)
+        ingredient_cache[cache_key] = result
+        
+        # Add warning if any score > 80
+        high_risk = [item["name"] for item in result if isinstance(item.get("score"), (int, float)) and item["score"] > 80]
+        warning = None
+        if high_risk:
+            warning = f"Warning: High carcinogen risk for: {', '.join(high_risk)}."
+        
+        log_analysis(ingredients, json.dumps(result), None)
+        response_json = {"ingredients": result}
+        if warning:
+            response_json["warning"] = warning
+        response_json["cached"] = False
+        return response_json
 
     # Batch mode: list of products
     if isinstance(request, list):
@@ -245,18 +299,22 @@ def get_llm_response(
     elif isinstance(request, dict) and "ingredients" in request:
         return analyze_ingredients(request["ingredients"])
     else:
-        return {"error": "Invalid request format."} 
+        return {"error": "Invalid request format."}
 
-import requests
+@app.get("/test")
+def test_endpoint():
+    """Simple test endpoint to check if backend is running"""
+    return {
+        "status": "Backend is running!",
+        "timestamp": datetime.utcnow().isoformat(),
+        "ollama_available": True  # We're using Ollama now
+    }
 
-def search_web_bing(query, api_key):
-    url = "https://api.bing.microsoft.com/v7.0/search"
-    headers = {"Ocp-Apim-Subscription-Key": api_key}
-    params = {"q": query, "textDecorations": True, "textFormat": "HTML", "count": 3}
-    response = requests.get(url, headers=headers, params=params)
-    response.raise_for_status()
-    results = response.json()
-    snippets = []
-    for web_page in results.get("webPages", {}).get("value", []):
-        snippets.append(f"{web_page['name']}: {web_page['snippet']} (Source: {web_page['url']})")
-    return "\n".join(snippets) 
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "model": "ollama",
+        "ollama_url": OLLAMA_URL
+    } 
