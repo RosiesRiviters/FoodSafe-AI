@@ -13,7 +13,7 @@ app = FastAPI()
 
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "gemma"  # Change this to match your installed model
+OLLAMA_MODEL = "gemma3"  # Using gemma3 which is faster
 
 # Web search configuration (using free SerpAPI)
 SERPAPI_KEY = "your_serpapi_key_here"  # Get free key from https://serpapi.com/
@@ -216,7 +216,7 @@ Context about {ingredient}: {context}
 
 Analyze the carcinogen risk for: {ingredient}
 
-Provide your response in this exact JSON format:
+You must respond with ONLY a valid JSON object in this exact format, no other text:
 {{
   "name": "{ingredient}",
   "risk_level": "Low/Medium/High/Unknown",
@@ -227,7 +227,7 @@ Provide your response in this exact JSON format:
 
 If there is no known risk, set risk_level to "Low", score to 0, source to "N/A", and explanation to "No known carcinogen risk."
 
-Respond only with the JSON, no additional text. [/INST]"""
+IMPORTANT: Respond ONLY with the JSON object, no additional text, no explanations outside the JSON. [/INST]"""
             
             try:
                 # Generate response using Ollama
@@ -237,24 +237,46 @@ Respond only with the JSON, no additional text. [/INST]"""
                     "stream": False
                 }
                 
-                response = requests.post(OLLAMA_URL, json=payload, timeout=30)
+                response = requests.post(OLLAMA_URL, json=payload, timeout=60)
                 response.raise_for_status()
                 data = response.json()
                 llm_output = data.get("response", "").strip()
                 
+                # Debug: Print what the AI returned
+                print(f"AI response for {ingredient}: {llm_output[:500]}...")
+                
                 # Try to parse JSON from response
                 try:
+                    # First try direct JSON parsing
                     result = json.loads(llm_output)
                     results.append(result)
                 except json.JSONDecodeError:
-                    # If JSON parsing fails, create a fallback entry
-                    results.append({
-                        "name": ingredient,
-                        "risk_level": "unknown",
-                        "score": "unknown", 
-                        "source": "N/A",
-                        "explanation": "Unable to parse AI response"
-                    })
+                    # If that fails, try to extract JSON from the response
+                    import re
+                    json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
+                    if json_match:
+                        try:
+                            extracted_json = json_match.group(0)
+                            result = json.loads(extracted_json)
+                            results.append(result)
+                        except json.JSONDecodeError:
+                            # If still fails, create a fallback entry
+                            results.append({
+                                "name": ingredient,
+                                "risk_level": "unknown",
+                                "score": "unknown", 
+                                "source": "N/A",
+                                "explanation": f"Unable to parse AI response. Raw response: {llm_output[:200]}..."
+                            })
+                    else:
+                        # No JSON found in response
+                        results.append({
+                            "name": ingredient,
+                            "risk_level": "unknown",
+                            "score": "unknown", 
+                            "source": "N/A",
+                            "explanation": f"AI did not return valid JSON. Raw response: {llm_output[:200]}..."
+                        })
                     
             except Exception as e:
                 results.append({
