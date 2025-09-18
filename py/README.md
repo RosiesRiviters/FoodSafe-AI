@@ -1,26 +1,34 @@
-# Minimal RAG Backend with Llama (Python)
+# Minimal Backend with OpenAI (Python)
 
 ## Setup
 
-1. Install dependencies:
+1. Set environment variables (create `py/.env`):
+
+```
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+USE_WEB_SEARCH=true
+SERPAPI_KEY=your_serpapi_key
+```
+
+2. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Run the FastAPI server:
+3. Run the FastAPI server:
 
 ```bash
 uvicorn rag_server:app --reload
 ```
 
-3. Test the endpoint (example with curl):
+4. Test the endpoint (example with curl):
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/rag" -H "Content-Type: application/json" -d '{"query": "What is RAG?", "context": []}'
 ```
 
-## Next Steps
-- Integrate Llama model loading and inference in `rag_server.py`.
-- Add retrieval logic for context documents.
-- Connect this backend to your Next.js frontend. 
+## Notes
+- Uses OpenAI Chat Completions with JSON mode.
+- Optional real-time web search via SerpAPI for context retrieval.

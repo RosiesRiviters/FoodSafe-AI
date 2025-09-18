@@ -5,7 +5,8 @@ export async function getRagResponse(prompt: string): Promise<{ answer: string |
     return { answer: null, error: "Please enter a prompt." };
   }
   try {
-    const response = await fetch("http://localhost:8000/rag", {
+    // Deprecated endpoint placeholder. Consider removing or implementing /rag in backend if needed.
+    const response = await fetch("http://localhost:8002/rag", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: prompt, context: [] })
@@ -24,7 +25,7 @@ export async function getRagResponse(prompt: string): Promise<{ answer: string |
 export async function postIngredientsForAnalysis(ingredients: string): Promise<any> {
   try {
     console.log("Attempting to fetch from backend...");
-    const response = await fetch("http://localhost:8000/ingredients", {
+    const response = await fetch("http://localhost:8002/ingredients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ingredients })
@@ -49,7 +50,7 @@ export async function postIngredientsForAnalysis(ingredients: string): Promise<a
 
 export async function postBatchProductsForAnalysis(products: { product: string; ingredients: string }[]): Promise<any> {
   try {
-    const response = await fetch("http://localhost:8000/ingredients", {
+    const response = await fetch("http://localhost:8002/ingredients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(products)
@@ -65,7 +66,7 @@ export async function postBatchProductsForAnalysis(products: { product: string; 
 
 export async function checkBackendHealth(): Promise<any> {
   try {
-    const response = await fetch("http://localhost:8000/health");
+    const response = await fetch("http://localhost:8002/health");
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

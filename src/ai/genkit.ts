@@ -1,17 +1,7 @@
 import { genkit } from 'genkit';
-import { ollama } from 'genkitx-ollama';
+import { openai } from '@genkit-ai/openai';
 
 export const ai = genkit({
-  plugins: [
-    ollama({
-      models: [
-        {
-          name: 'gemma', // switched to Gemma model
-          type: 'generate',
-        },
-      ],
-      serverAddress: 'http://127.0.0.1:11434',
-    }),
-  ],
-  model: 'ollama/gemma', // switched to Gemma model
+  plugins: [openai()],
+  model: 'openai/gpt-4o-mini',
 });
