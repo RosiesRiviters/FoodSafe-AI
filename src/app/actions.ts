@@ -6,7 +6,8 @@ export async function getRagResponse(prompt: string): Promise<{ answer: string |
   }
   try {
     // Deprecated endpoint placeholder. Consider removing or implementing /rag in backend if needed.
-    const response = await fetch("http://localhost:8002/rag", {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8002";
+    const response = await fetch(`${backendUrl}/rag`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: prompt, context: [] })
@@ -24,8 +25,9 @@ export async function getRagResponse(prompt: string): Promise<{ answer: string |
 
 export async function postIngredientsForAnalysis(ingredients: string): Promise<any> {
   try {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8002";
     console.log("Attempting to fetch from backend...");
-    const response = await fetch("http://localhost:8002/ingredients", {
+    const response = await fetch(`${backendUrl}/ingredients`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ingredients })
@@ -50,7 +52,8 @@ export async function postIngredientsForAnalysis(ingredients: string): Promise<a
 
 export async function postBatchProductsForAnalysis(products: { product: string; ingredients: string }[]): Promise<any> {
   try {
-    const response = await fetch("http://localhost:8002/ingredients", {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8002";
+    const response = await fetch(`${backendUrl}/ingredients`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(products)
@@ -66,7 +69,8 @@ export async function postBatchProductsForAnalysis(products: { product: string; 
 
 export async function checkBackendHealth(): Promise<any> {
   try {
-    const response = await fetch("http://localhost:8002/health");
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8002";
+    const response = await fetch(`${backendUrl}/health`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
