@@ -18,7 +18,7 @@ load_dotenv(dotenv_path=str(_dotenv_path))
 
 app = FastAPI()
 
-# CORS: allow local Next.js dev servers (300 and 3001)
+# CORS: allow local Next.js dev servers and production Vercel deployment
 allowed_origins = [
     "http://localhost:300",
     "http://127.0.0.1:300",
@@ -28,6 +28,7 @@ allowed_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow all Vercel deployments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
