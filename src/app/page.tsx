@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Leaf, ToggleLeft, ToggleRight } from "lucide-react";
+import { Leaf, ToggleLeft, ToggleRight, Instagram } from "lucide-react";
 import { postIngredientsForAnalysis, postBatchProductsForAnalysis } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -355,7 +355,19 @@ export default function Home() {
         </section>
       </main>
       <footer className="text-center p-4 text-xs text-muted-foreground bg-card border-t">
-        FoodSafe AI &copy; {new Date().getFullYear()}
+        <div className="flex flex-col items-center gap-2">
+          <div>FoodSafe AI &copy; {new Date().getFullYear()}</div>
+          <a
+            href="https://www.instagram.com/carcinogenscanai/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors duration-200 group"
+            aria-label="Follow us on Instagram"
+          >
+            <Instagram className="h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
+            <span className="text-sm">Find us on Insta!</span>
+          </a>
+        </div>
       </footer>
     </div>
   );
