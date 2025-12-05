@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,6 +19,33 @@ const formSchema = z.object({
 });
 type FormValues = z.infer<typeof formSchema>;
 
+const flavorTexts = [
+  "2% Reduced Fat!",
+  "Just One more Fry",
+  "Just put the fries in the bag",
+  "Carcinogen Scan AI was developed by a highschool student as part of the IB Personal Project",
+  "Its raining Taco's!!!",
+  "What'd you eat for dinner?",
+  "Carcinogen: A substance capable of causing cancer within living tissue.",
+  "BOO!",
+  "Pineapple Pizza",
+  "An apple a day keeps the doctor away.",
+  "Keeping Hydrated?",
+  "Crunching Numbers",
+  "Weighing Watermelons",
+  "Catching Carbs",
+  "Spinning up artificial brains.",
+  "Insta Below!!!",
+  "Know it all-gorithm",
+  "Sequencing Salsa",
+  "Optimizing Oatmeal",
+  "Can u smell the butter?",
+  "A or B day?",
+  "C Lunch sucks!",
+  "Salad Bar today.",
+  "There was a second page!"
+];
+
 export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +57,9 @@ export default function Home() {
   const [batchResults, setBatchResults] = useState<any | null>(null);
   const [isBatchLoading, setIsBatchLoading] = useState(false);
   const [isBatchMode, setIsBatchMode] = useState(false);
+  const [buttonText, setButtonText] = useState("Analyze Ingredients");
+  const [batchButtonText, setBatchButtonText] = useState("Analyze Batch");
+  const flavorTextTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -38,15 +68,45 @@ export default function Home() {
     },
   });
 
+  // Clear timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (flavorTextTimeoutRef.current) {
+        clearTimeout(flavorTextTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsLoading(true);
     setAnswer(null);
     setIngredientResults(null);
     
+    // Clear any existing timeout
+    if (flavorTextTimeoutRef.current) {
+      clearTimeout(flavorTextTimeoutRef.current);
+    }
+    
+    // Set initial text
+    setButtonText("May take up to 2 minutes");
+    
+    // After 3-5 seconds, change to random flavor text
+    const delay = Math.random() * 2000 + 3000; // 3000-5000ms
+    flavorTextTimeoutRef.current = setTimeout(() => {
+      const randomFlavor = flavorTexts[Math.floor(Math.random() * flavorTexts.length)];
+      setButtonText(randomFlavor);
+    }, delay);
+    
     try {
       console.log("Submitting ingredients:", data.foodItems);
       const result = await postIngredientsForAnalysis(data.foodItems);
       setIsLoading(false);
+      
+      // Clear timeout and reset button text
+      if (flavorTextTimeoutRef.current) {
+        clearTimeout(flavorTextTimeoutRef.current);
+      }
+      setButtonText("Analyze Ingredients");
       
       if (result.error) {
         console.error("Backend error:", result.error);
@@ -76,6 +136,13 @@ export default function Home() {
     } catch (e) {
       console.error("Frontend error:", e);
       setIsLoading(false);
+      
+      // Clear timeout and reset button text on error
+      if (flavorTextTimeoutRef.current) {
+        clearTimeout(flavorTextTimeoutRef.current);
+      }
+      setButtonText("Analyze Ingredients");
+      
       toast({
         title: "Error",
         description: `Frontend error: ${e instanceof Error ? e.message : "Unknown error"}`,
@@ -103,12 +170,51 @@ export default function Home() {
       setIsBatchLoading(false);
       return;
     }
-    const result = await postBatchProductsForAnalysis(validProducts);
-    setIsBatchLoading(false);
-    if (result.error) {
-      toast({ title: "Error", description: result.error, variant: "destructive" });
-    } else {
-      setBatchResults(result);
+    
+    // Clear any existing timeout
+    if (flavorTextTimeoutRef.current) {
+      clearTimeout(flavorTextTimeoutRef.current);
+    }
+    
+    // Set initial text
+    setBatchButtonText("May take up to 2 minutes");
+    
+    // After 3-5 seconds, change to random flavor text
+    const delay = Math.random() * 2000 + 3000; // 3000-5000ms
+    flavorTextTimeoutRef.current = setTimeout(() => {
+      const randomFlavor = flavorTexts[Math.floor(Math.random() * flavorTexts.length)];
+      setBatchButtonText(randomFlavor);
+    }, delay);
+    
+    try {
+      const result = await postBatchProductsForAnalysis(validProducts);
+      setIsBatchLoading(false);
+      
+      // Clear timeout and reset button text
+      if (flavorTextTimeoutRef.current) {
+        clearTimeout(flavorTextTimeoutRef.current);
+      }
+      setBatchButtonText("Analyze Batch");
+      
+      if (result.error) {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      } else {
+        setBatchResults(result);
+      }
+    } catch (e) {
+      setIsBatchLoading(false);
+      
+      // Clear timeout and reset button text on error
+      if (flavorTextTimeoutRef.current) {
+        clearTimeout(flavorTextTimeoutRef.current);
+      }
+      setBatchButtonText("Analyze Batch");
+      
+      toast({ 
+        title: "Error", 
+        description: e instanceof Error ? e.message : "Unknown error", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -191,7 +297,7 @@ export default function Home() {
                   )}
                 />
                 <Button type="submit" disabled={isLoading} className="w-full text-base font-bold py-6">
-                  {isLoading ? "Analyzing..." : "Analyze Ingredients"}
+                  {isLoading ? buttonText : "Analyze Ingredients"}
                 </Button>
               </form>
             </Form>
@@ -233,7 +339,7 @@ export default function Home() {
                 + Add Product
               </button>
               <Button type="submit" disabled={isBatchLoading} className="w-full text-base font-bold py-6">
-                {isBatchLoading ? "Analyzing Batch..." : "Analyze Batch"}
+                {isBatchLoading ? batchButtonText : "Analyze Batch"}
               </Button>
             </form>
           </section>
