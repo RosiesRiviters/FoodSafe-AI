@@ -1,0 +1,32 @@
+warning: in the working copy of 'src/app/page.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/src/app/page.tsx b/src/app/page.tsx[m
+[1mindex 29298a9..0bb4bfc 100644[m
+[1m--- a/src/app/page.tsx[m
+[1m+++ b/src/app/page.tsx[m
+[36m@@ -4,7 +4,7 @@[m [mimport { useState } from "react";[m
+ import { useForm, type SubmitHandler } from "react-hook-form";[m
+ import { zodResolver } from "@hookform/resolvers/zod";[m
+ import * as z from "zod";[m
+[31m-import { Leaf, ToggleLeft, ToggleRight } from "lucide-react";[m
+[32m+[m[32mimport { Leaf, ToggleLeft, ToggleRight, Instagram } from "lucide-react";[m
+ import { postIngredientsForAnalysis, postBatchProductsForAnalysis } from "./actions";[m
+ import { Button } from "@/components/ui/button";[m
+ import { Textarea } from "@/components/ui/textarea";[m
+[36m@@ -357,6 +357,17 @@[m [mexport default function Home() {[m
+       <footer className="text-center p-4 text-xs text-muted-foreground bg-card border-t">[m
+         FoodSafe AI &copy; {new Date().getFullYear()}[m
+       </footer>[m
+[32m+[m[41m      [m
+[32m+[m[32m      {/* Instagram Icon - Fixed Bottom Right */}[m
+[32m+[m[32m      <a[m
+[32m+[m[32m        href="https://www.instagram.com/carcinogenscanai/"[m
+[32m+[m[32m        target="_blank"[m
+[32m+[m[32m        rel="noopener noreferrer"[m
+[32m+[m[32m        className="fixed bottom-6 right-6 z-50 bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 group"[m
+[32m+[m[32m        aria-label="Follow us on Instagram"[m
+[32m+[m[32m      >[m
+[32m+[m[32m        <Instagram className="h-6 w-6 text-white" />[m
+[32m+[m[32m      </a>[m
+     </div>[m
+   );[m
+ }[m
