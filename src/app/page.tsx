@@ -61,6 +61,17 @@ export default function Home() {
   const [batchButtonText, setBatchButtonText] = useState("Analyze Batch");
   const flavorTextTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [aiInputError, setAiInputError] = useState<string | null>(null);
+  
+  // History state
+  interface HistoryItem {
+    id: string;
+    timestamp: Date;
+    input: string;
+    output: any; // Can be ingredientResults or batchResults
+    isBatch: boolean;
+  }
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -78,6 +89,59 @@ export default function Home() {
     };
   }, []);
 
+  // Function to detect if input is vague
+  const isVagueInput = (input: string): { isVague: boolean; suggestions: string[] } => {
+    const trimmed = input.trim();
+    const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+    
+    // Very short inputs (less than 10 characters) are likely vague
+    if (trimmed.length < 10) {
+      return {
+        isVague: true,
+        suggestions: ["brand name", "specific type", "ingredients list"]
+      };
+    }
+    
+    // Single word inputs are likely vague (unless they're very long compound words)
+    if (words.length === 1 && trimmed.length < 20) {
+      return {
+        isVague: true,
+        suggestions: ["brand name", "specific variety", "ingredients"]
+      };
+    }
+    
+    // Check for common vague patterns
+    const vaguePatterns = [
+      /^(cereal|bread|meat|cheese|fruit|vegetable|snack|drink|beverage)$/i,
+      /^(food|item|product|ingredient)$/i
+    ];
+    
+    for (const pattern of vaguePatterns) {
+      if (pattern.test(trimmed)) {
+        return {
+          isVague: true,
+          suggestions: ["brand name", "specific type", "ingredients list"]
+        };
+      }
+    }
+    
+    // Check if it contains specific details (brand names, types, etc.)
+    const hasSpecificDetails = 
+      /[A-Z][a-z]+'s/.test(trimmed) || // Brand names like "Cap'n"
+      words.length >= 3 || // Multiple words suggest specificity
+      /\d/.test(trimmed) || // Numbers suggest specificity
+      /(organic|natural|whole|reduced|low|high|free|no)/i.test(trimmed); // Descriptive terms
+    
+    if (!hasSpecificDetails && words.length <= 2) {
+      return {
+        isVague: true,
+        suggestions: ["brand name", "specific variety", "ingredients"]
+      };
+    }
+    
+    return { isVague: false, suggestions: [] };
+  };
+
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsLoading(true);
     setAnswer(null);
@@ -86,6 +150,17 @@ export default function Home() {
     // Clear any existing timeout
     if (flavorTextTimeoutRef.current) {
       clearTimeout(flavorTextTimeoutRef.current);
+    }
+    
+    // Check if input is vague (don't clear previous vague warning yet)
+    const vagueCheck = isVagueInput(data.foodItems);
+    if (vagueCheck.isVague) {
+      const suggestion1 = vagueCheck.suggestions[0] || "brand name";
+      const suggestion2 = vagueCheck.suggestions[1] || "specific type";
+      setAiInputError(`We recommend giving the AI a bit more data, such as ${suggestion1}, or ${suggestion2} to ensure accurate results; but we can roll with this for the time being.`);
+    } else {
+      // Only clear if the new input is NOT vague
+      setAiInputError(null);
     }
     
     // Set initial text
@@ -111,14 +186,35 @@ export default function Home() {
       
       if (result.error) {
         console.error("Backend error:", result.error);
-        toast({
-          title: "Error",
-          description: `Backend error: ${result.error}`,
-          variant: "destructive",
-        });
+        
+        // Check if it's a non-food item error
+        if (result.error.includes("Non-food items detected") || result.error.toLowerCase().includes("non-food")) {
+          setAiInputError("Input food item");
+        } else {
+          // For other errors, show in toast
+          toast({
+            title: "Error",
+            description: `Backend error: ${result.error}`,
+            variant: "destructive",
+          });
+        }
       } else if (result.ingredients) {
+        // Don't clear vague input warning on success - let it persist
+        // Only clear if it was a different type of error
         console.log("Success! Got results:", result.ingredients);
         setIngredientResults(result.ingredients);
+        
+        // Save to history
+        const historyItem: HistoryItem = {
+          id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: new Date(),
+          input: data.foodItems,
+          output: result.ingredients,
+          isBatch: false,
+        };
+        setHistory(prev => [historyItem, ...prev]);
+        setSelectedHistoryId(historyItem.id);
+        
         if (result.warning) {
           toast({
             title: "Warning",
@@ -177,6 +273,22 @@ export default function Home() {
       clearTimeout(flavorTextTimeoutRef.current);
     }
     
+    // Check if any product inputs are vague (don't clear previous vague warning yet)
+    const vagueProducts = validProducts.filter(p => {
+      const vagueCheck = isVagueInput(p.ingredients);
+      return vagueCheck.isVague;
+    });
+    
+    if (vagueProducts.length > 0) {
+      const vagueCheck = isVagueInput(vagueProducts[0].ingredients);
+      const suggestion1 = vagueCheck.suggestions[0] || "brand name";
+      const suggestion2 = vagueCheck.suggestions[1] || "specific type";
+      setAiInputError(`We recommend giving the AI a bit more data such as ${suggestion1} or ${suggestion2} to ensure accurate results, but we can roll with this for the time being`);
+    } else {
+      // Only clear if the new input is NOT vague
+      setAiInputError(null);
+    }
+    
     // Set initial text
     setBatchButtonText("May take up to 2 minutes");
     
@@ -198,9 +310,28 @@ export default function Home() {
       setBatchButtonText("Analyze Batch");
       
       if (result.error) {
-        toast({ title: "Error", description: result.error, variant: "destructive" });
+        // Check if it's a non-food item error
+        if (result.error.includes("Non-food items detected") || result.error.toLowerCase().includes("non-food")) {
+          setAiInputError("Input food item");
+        } else {
+          // For other errors, show in toast
+          toast({ title: "Error", description: result.error, variant: "destructive" });
+        }
       } else {
+        // Don't clear vague input warning on success - let it persist
+        // Only clear if it was a different type of error
         setBatchResults(result);
+        
+        // Save to history
+        const historyItem: HistoryItem = {
+          id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: new Date(),
+          input: validProducts.map(p => `${p.product}: ${p.ingredients}`).join(" | "),
+          output: result,
+          isBatch: true,
+        };
+        setHistory(prev => [historyItem, ...prev]);
+        setSelectedHistoryId(historyItem.id);
       }
     } catch (e) {
       setIsBatchLoading(false);
@@ -263,16 +394,86 @@ export default function Home() {
         </div>
       </header>
       <main className="flex-grow flex p-4 sm:p-6 lg:p-8 gap-6">
-        {/* Left Sidebar - History Section (Placeholder) */}
+        {/* Left Sidebar - History Section */}
         <aside className="w-64 flex-shrink-0 hidden lg:block">
           <div className="sticky top-6">
             <div className="bg-card border rounded-lg p-3 shadow-sm flex flex-col max-h-[calc(100vh-3rem)]">
               <h3 className="text-base font-bold font-headline mb-3">History</h3>
-              <div className="flex-1 overflow-y-auto">
-                <p className="text-xs text-muted-foreground">
-                  Past analyses and model output will appear here.
-                </p>
+              <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                {history.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Past analyses and model output will appear here.
+                  </p>
+                ) : (
+                  history.map((item) => {
+                    const isSelected = selectedHistoryId === item.id;
+                    const timeStr = item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const inputPreview = item.input.length > 30 
+                      ? item.input.substring(0, 30) + "..." 
+                      : item.input;
+                    
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedHistoryId(item.id)}
+                        className={`w-full text-left p-2 rounded border transition-colors ${
+                          isSelected 
+                            ? "bg-primary/10 border-primary" 
+                            : "bg-muted/50 border-border hover:bg-muted"
+                        }`}
+                      >
+                        <div className="text-xs font-semibold mb-1">{timeStr}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {inputPreview}
+                        </div>
+                        {item.isBatch && (
+                          <div className="text-xs text-primary mt-1">Batch</div>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
               </div>
+              
+              {/* Selected History Details */}
+              {selectedHistoryId && (() => {
+                const selectedItem = history.find(h => h.id === selectedHistoryId);
+                if (!selectedItem) return null;
+                
+                return (
+                  <div className="mt-3 pt-3 border-t">
+                    <div className="text-xs font-semibold mb-2">Input:</div>
+                    <div className="text-xs text-muted-foreground mb-3 p-2 bg-muted/50 rounded max-h-20 overflow-y-auto">
+                      {selectedItem.input}
+                    </div>
+                    <div className="text-xs font-semibold mb-2">Output:</div>
+                    <div className="text-xs text-muted-foreground max-h-[200px] overflow-y-auto p-2 bg-muted/50 rounded">
+                      {selectedItem.isBatch ? (
+                        <div className="space-y-2">
+                          {Object.entries(selectedItem.output).map(([product, res]: [string, any]) => (
+                            <div key={product} className="border-b pb-2 last:border-0">
+                              <div className="font-semibold mb-1">{product}</div>
+                              {res.ingredients && res.ingredients.map((ing: any, idx: number) => (
+                                <div key={idx} className="text-xs ml-2">
+                                  {ing.name}: {ing.risk_level} ({ing.score})
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {selectedItem.output.map((ing: any, idx: number) => (
+                            <div key={idx} className="text-xs">
+                              {ing.name}: {ing.risk_level} ({ing.score})
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </aside>
