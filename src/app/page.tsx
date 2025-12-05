@@ -60,6 +60,7 @@ export default function Home() {
   const [buttonText, setButtonText] = useState("Analyze Ingredients");
   const [batchButtonText, setBatchButtonText] = useState("Analyze Batch");
   const flavorTextTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [aiInputError, setAiInputError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -261,18 +262,34 @@ export default function Home() {
           </div>
         </div>
       </header>
-      <main className="flex-grow flex flex-col items-center p-4 sm:p-6 lg:p-8">
-        <section className="w-full max-w-2xl text-center mb-8">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl font-headline">
-            Check Your Food's Safety
-          </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
-            {isBatchMode 
-              ? "Enter multiple products with their ingredients for batch analysis."
-              : "Enter the food items you've consumed, and our AI will assess the potential carcinogen risk."
-            }
-          </p>
-        </section>
+      <main className="flex-grow flex p-4 sm:p-6 lg:p-8 gap-6">
+        {/* Left Sidebar - History Section (Placeholder) */}
+        <aside className="w-64 flex-shrink-0 hidden lg:block">
+          <div className="sticky top-6">
+            <div className="bg-card border rounded-lg p-3 shadow-sm flex flex-col max-h-[calc(100vh-3rem)]">
+              <h3 className="text-base font-bold font-headline mb-3">History</h3>
+              <div className="flex-1 overflow-y-auto">
+                <p className="text-xs text-muted-foreground">
+                  Past analyses and model output will appear here.
+                </p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col items-center min-w-0">
+          <section className="w-full max-w-2xl text-center mb-8">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl font-headline">
+              Check Your Food's Safety
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              {isBatchMode 
+                ? "Enter multiple products with their ingredients for batch analysis."
+                : "Enter the food items you've consumed, and our AI will assess the potential carcinogen risk."
+              }
+            </p>
+          </section>
 
         {!isBatchMode ? (
           <section className="w-full max-w-2xl mb-8">
@@ -459,6 +476,27 @@ export default function Home() {
             </div>
           )}
         </section>
+        </div>
+
+        {/* Right Sidebar - AI Input Section */}
+        <aside className="w-64 flex-shrink-0 hidden lg:block">
+          <div className="sticky top-6">
+            <div className="bg-card border rounded-lg p-3 shadow-sm">
+              <h3 className="text-base font-bold font-headline mb-3">AI Input</h3>
+              <div className="min-h-[150px]">
+                {aiInputError ? (
+                  <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs text-destructive">
+                    {aiInputError}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    AI error messages and feedback will appear here.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </aside>
       </main>
       <footer className="text-center p-4 text-xs text-muted-foreground bg-card border-t">
         <div className="flex flex-col items-center gap-2">
