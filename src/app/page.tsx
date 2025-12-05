@@ -402,7 +402,7 @@ export default function Home() {
             <div className="bg-primary p-2 rounded-lg">
               <Leaf className="h-6 w-6 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold font-headline">FoodSafe AI</h1>
+            <h1 className="text-2xl font-bold font-headline">CarcinogenScan AI</h1>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
@@ -697,7 +697,28 @@ export default function Home() {
       </main>
       <footer className="text-center p-4 text-xs text-muted-foreground bg-card border-t">
         <div className="flex flex-col items-center gap-2">
-          <div>FoodSafe AI &copy; {new Date().getFullYear()}</div>
+          <div>CarcinogenScan AI &copy; {new Date().getFullYear()}. All Rights Reserved. For informational purposes only. Not a substitute for professional medical advice.</div>
+          <div className="text-xs text-muted-foreground">
+            This site is protected by reCAPTCHA and the Google{" "}
+            <a 
+              href="https://policies.google.com/privacy" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              Privacy Policy
+            </a>
+            {" "}and{" "}
+            <a 
+              href="https://policies.google.com/terms" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              Terms of Service
+            </a>
+            {" "}apply.
+          </div>
           <a
             href="https://www.instagram.com/carcinogenscanai/"
             target="_blank"

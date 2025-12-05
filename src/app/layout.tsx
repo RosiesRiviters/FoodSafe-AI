@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'FoodSafe AI',
+  title: 'CarcinogenScan AI',
   description: 'AI-powered carcinogen risk assessment for your food.',
 };
 
