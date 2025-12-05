@@ -5,25 +5,31 @@
 ### Prerequisites
 - Python 3.8+
 - Node.js 18+
-- At least 8GB RAM (for Llama model)
-- 4GB+ free disk space (for model file)
+- OpenAI API key (get one from https://platform.openai.com/api-keys)
+- Optional: SerpAPI key for enhanced web search (get one from https://serpapi.com/)
 
-### 1. Download Llama Model
+### 1. Environment Configuration
 
-First, download a GGUF format Llama model:
+Create a `.env` file in the `py/` directory with your API keys:
 
 ```sh
-# Create models directory
-mkdir -p py/models
-
-# Download Llama-2-7B-Chat model (recommended)
-wget https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf -O py/models/llama-2-7b-chat.gguf
-
-# Alternative: Download a smaller model if you have limited RAM
-# wget https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q5_K_M.gguf -O py/models/llama-2-7b-chat.gguf
+cd py
+cp .env.example .env  # If .env.example exists, or create manually
 ```
 
-**Note**: The model file is ~4GB. If you have limited RAM, use a quantized version (Q4_K_M or Q5_K_M).
+Required environment variables:
+```env
+# Required: OpenAI API Key
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o-mini
+
+# Optional: Web Search (for enhanced research)
+SERPAPI_KEY=your_serpapi_key_here
+USE_WEB_SEARCH=true
+
+# Optional: USDA FoodData Central API
+USDA_API_KEY=your_usda_api_key_here
+```
 
 ### 2. Install Python Dependencies
 
@@ -37,7 +43,8 @@ pip install -r requirements.txt
 - `uvicorn` - ASGI server
 - `requests` - HTTP client
 - `pydantic` - Data validation
-- `llama-cpp-python` - Llama model inference
+- `openai` - OpenAI API client
+- `python-dotenv` - Environment variable management
 - `sqlite3` - Database (built-in)
 
 ### 3. Install Node.js Dependencies
@@ -46,19 +53,21 @@ pip install -r requirements.txt
 npm install
 ```
 
-### 4. Start the Backend (Llama + FastAPI)
+### 4. Start the Backend (FastAPI + OpenAI)
 
 From the project root:
 ```sh
 cd py
-python -m uvicorn rag_server:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn rag_server:app --reload --host 0.0.0.0 --port 8002
 ```
 
 **Expected output:**
 ```
-✅ Llama model loaded from py/models/llama-2-7b-chat.gguf
-INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Uvicorn running on http://0.0.0.0:8002
+INFO:     Application startup complete.
 ```
+
+**Note**: The backend runs on port 8002 (not 8000) to match the frontend configuration.
 
 ### 5. Start the Frontend (Next.js)
 
@@ -80,40 +89,35 @@ Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Features
 
-- **Direct Llama inference** - No external API dependencies
-- **Context-aware analysis** - Ingredient-specific knowledge retrieval
+- **AI-Powered Analysis** - Uses OpenAI GPT models for comprehensive risk assessment
+- **Multi-Source Research** - Integrates USDA, OpenFoodFacts, and web search for accurate data
+- **Context-aware analysis** - Ingredient-specific knowledge retrieval with component breakdown
 - **Batch processing** - Analyze multiple products at once
 - **Real-time risk assessment** - Carcinogen risk scoring (0-100)
+- **NOVA Classification** - Food processing level classification (1-4)
 - **Structured responses** - JSON output with risk levels, sources, explanations
+- **Input validation** - Validates that inputs are food products
 - **Caching system** - Faster repeated queries
 - **Health monitoring** - Backend status checks
 - **SQLite logging** - Request/response tracking
 
 ---
 
-## Model Configuration
+## Configuration
 
-### Supported Models
-- **Llama-2-7B-Chat** (recommended)
-- **Llama-2-13B-Chat** (better quality, more RAM required)
-- **CodeLlama** (good for structured outputs)
-
-### Model Path
-Update the model path in `py/rag_server.py`:
-```python
-MODEL_PATH = "models/your-model-name.gguf"
+### OpenAI Model
+The default model is `gpt-4o-mini`. You can change it in your `.env` file:
+```env
+OPENAI_MODEL=gpt-4o-mini  # or gpt-4, gpt-3.5-turbo, etc.
 ```
 
-### Performance Tuning
-Adjust these parameters in `py/rag_server.py`:
-```python
-LLAMA_MODEL = Llama(
-    model_path=MODEL_PATH,
-    n_ctx=2048,        # Context window size
-    n_threads=4,       # CPU threads (increase for better performance)
-    verbose=False
-)
-```
+### Web Search (Optional)
+Enable enhanced web search by setting `USE_WEB_SEARCH=true` and providing a `SERPAPI_KEY` in your `.env` file. This provides more comprehensive research data for risk assessment.
+
+### API Keys
+- **OpenAI API Key** (Required): Get from https://platform.openai.com/api-keys
+- **SerpAPI Key** (Optional): Get from https://serpapi.com/ for enhanced web search
+- **USDA API Key** (Optional): Get from https://fdc.nal.usda.gov/api-guide.html
 
 ---
 
@@ -121,19 +125,19 @@ LLAMA_MODEL = Llama(
 
 ### Health Check
 ```sh
-curl http://localhost:8000/health
+curl http://localhost:8002/health
 ```
 
 ### Single Ingredient Analysis
 ```sh
-curl -X POST "http://localhost:8000/ingredients" \
+curl -X POST "http://localhost:8002/ingredients" \
   -H "Content-Type: application/json" \
   -d '{"ingredients": "bacon, lettuce, tomato"}'
 ```
 
 ### Batch Product Analysis
 ```sh
-curl -X POST "http://localhost:8000/ingredients" \
+curl -X POST "http://localhost:8002/ingredients" \
   -H "Content-Type: application/json" \
   -d '[
     {"product": "BLT", "ingredients": "bacon, lettuce, tomato"},
@@ -145,19 +149,15 @@ curl -X POST "http://localhost:8000/ingredients" \
 
 ## Troubleshooting
 
-### Model Loading Issues
-- **"Model not found"**: Check the `MODEL_PATH` in `rag_server.py`
-- **"Out of memory"**: Use a smaller quantized model (Q4_K_M)
-- **Slow loading**: The model loads once on startup, subsequent requests are fast
-
 ### Backend Issues
-- **Port 8000 in use**: Change the port in the uvicorn command
-- **Model not responding**: Check the health endpoint `/health`
-- **Memory issues**: Reduce `n_threads` or use a smaller model
+- **"OPENAI_API_KEY is not configured"**: Make sure you've created a `.env` file in the `py/` directory with your OpenAI API key
+- **Port 8002 in use**: Change the port in the uvicorn command and update the frontend `actions.ts` file
+- **API errors**: Check that your OpenAI API key is valid and has credits
+- **Web search not working**: Verify your SerpAPI key is set correctly, or set `USE_WEB_SEARCH=false` to disable
 
 ### Frontend Issues
-- **"Connection refused"**: Make sure the backend is running on port 8000
-- **"Fetch failed"**: Check browser console for CORS issues
+- **"Connection refused"**: Make sure the backend is running on port 8002
+- **"Fetch failed"**: Check browser console for CORS issues or verify backend is running
 
 ### Performance Tips
 - **First request slow**: Normal, model needs to warm up
@@ -192,9 +192,13 @@ sqlite3 py/analysis_log.db "SELECT * FROM analysis_log ORDER BY timestamp DESC L
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Next.js UI    │───▶│  FastAPI Backend│───▶│   Llama Model   │
-│   (Port 3000)   │    │   (Port 8000)   │    │   (Local)       │
+│   Next.js UI    │───▶│  FastAPI Backend│───▶│   OpenAI API    │
+│   (Port 3000)   │    │   (Port 8002)   │    │   (Cloud)       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
+                              │
+                              ├──▶ USDA API
+                              ├──▶ OpenFoodFacts API
+                              ├──▶ SerpAPI (Web Search)
                               │
                               ▼
                        ┌─────────────────┐
