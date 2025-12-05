@@ -80,6 +80,42 @@ export default function Home() {
     },
   });
 
+  // Handle history item selection
+  const handleHistorySelect = (item: HistoryItem) => {
+    setSelectedHistoryId(item.id);
+    
+    // Clear AI input error when selecting history
+    setAiInputError(null);
+    
+    // Set the appropriate mode
+    if (item.isBatch) {
+      setIsBatchMode(true);
+      // Parse the batch input and set batch products
+      const products = item.input.split(" | ").map(prod => {
+        const [product, ...ingredientParts] = prod.split(": ");
+        return {
+          product: product || "",
+          ingredients: ingredientParts.join(": ") || ""
+        };
+      });
+      setBatchProducts(products.length > 0 ? products : [{ product: "", ingredients: "" }]);
+      setBatchResults(item.output);
+      setIngredientResults(null);
+    } else {
+      setIsBatchMode(false);
+      // Set the form input value
+      form.setValue("foodItems", item.input);
+      setIngredientResults(item.output);
+      setBatchResults(null);
+    }
+    
+    // Clear any loading states
+    setIsLoading(false);
+    setIsBatchLoading(false);
+    setButtonText("Analyze Ingredients");
+    setBatchButtonText("Analyze Batch");
+  };
+
   // Clear timeout on unmount
   useEffect(() => {
     return () => {
@@ -415,7 +451,7 @@ export default function Home() {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => setSelectedHistoryId(item.id)}
+                        onClick={() => handleHistorySelect(item)}
                         className={`w-full text-left p-2 rounded border transition-colors ${
                           isSelected 
                             ? "bg-primary/10 border-primary" 
@@ -434,46 +470,6 @@ export default function Home() {
                   })
                 )}
               </div>
-              
-              {/* Selected History Details */}
-              {selectedHistoryId && (() => {
-                const selectedItem = history.find(h => h.id === selectedHistoryId);
-                if (!selectedItem) return null;
-                
-                return (
-                  <div className="mt-3 pt-3 border-t">
-                    <div className="text-xs font-semibold mb-2">Input:</div>
-                    <div className="text-xs text-muted-foreground mb-3 p-2 bg-muted/50 rounded max-h-20 overflow-y-auto">
-                      {selectedItem.input}
-                    </div>
-                    <div className="text-xs font-semibold mb-2">Output:</div>
-                    <div className="text-xs text-muted-foreground max-h-[200px] overflow-y-auto p-2 bg-muted/50 rounded">
-                      {selectedItem.isBatch ? (
-                        <div className="space-y-2">
-                          {Object.entries(selectedItem.output).map(([product, res]: [string, any]) => (
-                            <div key={product} className="border-b pb-2 last:border-0">
-                              <div className="font-semibold mb-1">{product}</div>
-                              {res.ingredients && res.ingredients.map((ing: any, idx: number) => (
-                                <div key={idx} className="text-xs ml-2">
-                                  {ing.name}: {ing.risk_level} ({ing.score})
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {selectedItem.output.map((ing: any, idx: number) => (
-                            <div key={idx} className="text-xs">
-                              {ing.name}: {ing.risk_level} ({ing.score})
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
           </div>
         </aside>
